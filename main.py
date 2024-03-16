@@ -217,7 +217,7 @@ class Interaction: # handles collision checking
             if (offset_l <= Worldspace.EastWall.Radius):
                 actor.Velocity.reflect(Worldspace.EastWall.Normal)
             
-            if (offset_r >= Game.SCREEN_WIDTH - Worldspace.WestWall.Radius):
+            if (offset_r >= Game.SCREEN_WIDTH - Worldspace.WestWall.Radius) and not (Game.STAGE == 0):
                 actor.Velocity.reflect(Worldspace.WestWall.Normal)
            
             if offset_u <= Worldspace.NorthWall.Radius:
@@ -277,15 +277,15 @@ class Worldspace:
             
         else:
             if stage == 0: # Exit stage
-                # draw without the EAST border
-                for border in [self.NorthWall, self.SouthWall, self.WestWall]:
+                for border in [self.NorthWall, self.SouthWall, self.EastWall]:
                     border.draw(canvas)
-    
                 
                 canvas.draw_text("EXIT", (Game.SCREEN_WIDTH / 2 + 150, Game.SCREEN_HEIGHT / 2), 32, "White")
                 if runtime % 60 <= 40: # flashing effect 
                     canvas.draw_text(">>>>", (Game.SCREEN_WIDTH / 2 + 150, Game.SCREEN_HEIGHT / 2 + 25), 32, "White")
         
+        		# TODO Player Exiting Level
+            
             elif stage == 1: # Level 1
                 self.Render_Border(canvas)
                 
@@ -316,7 +316,7 @@ class Game:
         self.Metatable = {
             1 : {
                 "PlayerSpawn" : Vector(self.SCREEN_WIDTH / 4,self.SCREEN_HEIGHT / 2),
-                "EnemySpawn" : [Enemy(Vector(200,200), 20)]
+                "EnemySpawn" : []
             }
         }
     
@@ -336,17 +336,19 @@ class Game:
         
         Worldspace.Render(canvas, self.STAGE)
         
+        PlayerCharacter.update()
+        PlayerCharacter.draw(canvas)
+        
         if self.isPlaying:
             self.ObjectPipeline = [self.Entities, self.Enemies]
             
             Interaction.update()
-            
-            print(self.ObjectPipeline)
                                       
             for pipeline in self.ObjectPipeline:
                 for Object in pipeline:
                     PlayerCharacter.update()
                     PlayerCharacter.draw(canvas)
+                    
                     Object.update()
                     Object.draw(canvas)
             
@@ -386,3 +388,5 @@ frame.set_keyup_handler(Keyboard.keyUp)
 
 print("Game Canvas Started")
 frame.start()
+
+
