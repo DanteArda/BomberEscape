@@ -3,14 +3,22 @@ from user305_o32FtUyCKk_0 import Vector
 
 """
 TODO:
-Collision
+There is a realtime score mechanism.
+
+When the lives go to zero, the welcome screen reappears and all the game sprites are cleared.
+
+While the welcome screen is being displayed the game mechanism is stopped.
+When the welcome screen is clicked, the lives and the score are reset.
+The program displays on the canvas an appropriate text for both the lives and the score.
+
+Pursue and evade effects (e.g., sprites that “gravitate” towards or chase the player).
 """
 
 class Player():
     def __init__(self):
         self.Position = None
         self.Lives = 3
-        self.Score = 0
+        self.Score = 0 
         self.Bombs_Dropped = 0
 
 class Actor:
@@ -19,6 +27,7 @@ class Actor:
         self.Velocity = Vector()
         self.Radius = radius
         self.Color = color
+        self.inCollision = False
         
     def draw(self, canvas):
         canvas.draw_circle(self.Position.get_p(), self.Radius, 1, self.Color, self.Color)
@@ -34,18 +43,32 @@ class PlayerCharacter(Actor):
         
         self.delayBetweenBombDrops = 3 # seconds
         self.canDropBomb = False
-        self.timeSinceLastDroppedBomb = -90
+        self.hasDroppedBombForFirstTime = False
         
     def update(self):
         self.Position.add(self.Velocity)
         self.Velocity.multiply(0.85)
         
+
         if (self.timeSinceLastDroppedBomb + 60 * self.delayBetweenBombDrops) <= runtime:
             self.canDropBomb = True
         
 class Enemy(Actor):
-    def __init__(self, Position, Radius):
+    def __init__(self, Position, Radius, AI = None):
         super().__init__(Position, Radius, "Red")
+        
+        # Supported AI
+        # "FollowPlayer" : Follows the Player
+        # None : Default, moves in a straight line, bouncing off walls
+        self.AI = AI
+        self.Velocity = Vector(3.33/2, 3.33/2)
+        
+    def update(self):
+        if self.AI == "FollowPlayer":
+            pass
+        
+        self.Position.add(self.Velocity)
+        
 
 class Spritesheet():
     def __init__(self, image_url, columns, rows, numFrames):
@@ -64,13 +87,61 @@ class Spritesheet():
         self.frame_centre_y = self.frame_height / 2
         
 class Explosion(Spritesheet):
-    def __init__(self):
+    def __init__(self, Position):
         # explosion sprite from:
         # royal holloway
         # https://www.cs.rhul.ac.uk/courses/CS1830/sprites/explosion-spritesheet.png
         
         super().__init__("https://www.cs.rhul.ac.uk/courses/CS1830/sprites/explosion-spritesheet.png", 9, 9, 74)
-        # TODO
+        
+        self.Position = Position
+        self.Counter = 0
+        self.Born = runtime
+        self.Radius = PlayerCharacter.Radius+20 * 2.75
+    
+    def draw(self, canvas):
+        # debug mode
+        # canvas.draw_circle(self.Position.get_p(), self.Radius, 1, "Orange", "Orange")
+        
+        canvas.draw_image(self.image,
+                          (self.frame_width * self.frameIndex[0] + self.frame_centre_x,
+                           self.frame_height * self.frameIndex[1] + self.frame_centre_y),
+                          (self.frame_width, self.frame_height),
+                          (self.Position.x, self.Position.y),
+                          (PlayerCharacter.Radius+20 * 9, PlayerCharacter.Radius+20 * 9))
+    
+    def hit(self, actor) -> boolean:
+        distance = actor.Position.copy().subtract(self.Position).length()
+        return distance < actor.Radius + self.Radius
+
+    def update(self):
+        self.Counter += 1
+        
+        allActorsCopy = Game.Enemies.copy()
+        allActorsCopy.append(PlayerCharacter)
+        for actor in allActorsCopy:
+            if self.hit(actor):
+                if actor == PlayerCharacter:
+                    print("Player")
+                    
+                else:
+                    if actor in Game.Enemies:
+                        Game.Enemies.remove(actor)
+        
+        if (self.Born + self.Counter) % 3 == 0:
+            self.frameIndex[0] = self.frameIndex[0] % self.columns
+            
+            if self.frameIndex[0] == 0:
+                self.frameIndex[1] = self.frameIndex[1] + 1
+            
+                if self.frameIndex[1] == self.rows:
+                    self.kill()
+        
+                    
+        
+    def kill(self):
+        # kill both collision and sprite
+        Game.Entities.remove(self)
 
 class Bomb(Spritesheet):
     def __init__(self):
@@ -84,6 +155,7 @@ class Bomb(Spritesheet):
         
         PlayerCharacter.canDropBomb = False
         PlayerCharacter.timeSinceLastDroppedBomb = runtime
+        Player.Bombs_Dropped += 1
  
        
     def update(self):
@@ -96,11 +168,10 @@ class Bomb(Spritesheet):
                 self.explode()
             
     def explode(self):
-      
-        
+        Game.Entities.append(Explosion(self.Position))
         Game.Entities.remove(self)
     
-    def draw(self, canvas):
+    def draw(self, canvas): 
         canvas.draw_image(self.image,
                           (self.frame_width * self.frameIndex[0] + self.frame_centre_x,
                            self.frame_height * self.frameIndex[1] + self.frame_centre_y),
@@ -215,16 +286,33 @@ class Interaction: # handles collision checking
             offset_d = actor.Position.y + actor.Radius
             
             if (offset_l <= Worldspace.EastWall.Radius):
-                actor.Velocity.reflect(Worldspace.EastWall.Normal)
+                if not actor.inCollision:
+                    actor.Velocity.reflect(Worldspace.EastWall.Normal)
+                    actor.inCollision = True
+            else:
+                actor.inCollision = False        
             
             if (offset_r >= Game.SCREEN_WIDTH - Worldspace.WestWall.Radius) and not (Game.STAGE == 0):
-                actor.Velocity.reflect(Worldspace.WestWall.Normal)
+                if not actor.inCollision:
+                    actor.Velocity.reflect(Worldspace.WestWall.Normal)
+                    actor.inCollision = True
+            else:
+                actor.inCollision = False
            
             if offset_u <= Worldspace.NorthWall.Radius:
-                actor.Velocity.reflect(Worldspace.NorthWall.Normal)
+                if not actor.inCollision:
+                    actor.Velocity.reflect(Worldspace.NorthWall.Normal)
+                    actor.inCollision = True
+            else:
+                actor.inCollision = False
                 
             if offset_d >= Game.SCREEN_HEIGHT - Worldspace.SouthWall.Radius:
-                actor.Velocity.reflect(Worldspace.SouthWall.Normal)
+                if not actor.inCollision:
+                    actor.Velocity.reflect(Worldspace.SouthWall.Normal)
+                    actor.inCollision = True
+            else:
+                actor.inCollision = False
+        
     
     def update(self):
         self.keyboard_handler()
@@ -239,22 +327,24 @@ class Worldspace:
         self.WestWall = Wall('right', Vector(-1,0))
          
         self.Border = [self.NorthWall, self.SouthWall, self.EastWall, self.WestWall]
+        
+        self.Buffer = False
     
     def Render_Border(self, canvas):
         for border in self.Border:
             border.draw(canvas)
     
     def Render(self, canvas, stage):
+        # these two values give the headline, you should add to Y to bring text lower
+        x = Game.SCREEN_WIDTH / 2 - 150
+        y = Game.SCREEN_HEIGHT / 4
+        
         if stage == -1: # Welcome Screen
             if Keyboard.SPACE:
                 Game.STAGE = 1
                 print("Going to Level", Game.STAGE)
                 Game.Transistion()
             # Welcome Page
-            
-            # these two values give the headline, you should add to Y to bring text lower
-            x = Game.SCREEN_WIDTH / 2 - 150
-            y = Game.SCREEN_HEIGHT / 4
             
             canvas.draw_text("Bomber Escape", (x,y), 50, "Red")
             canvas.draw_text("A CS1821 Game", (x,y+25), 20, "Grey")
@@ -272,9 +362,15 @@ class Worldspace:
                 canvas.draw_text("Press Spacebar to Start Game", (x-50,y+300),32, "Red")
         
         elif stage == -2: # Game Over Screen
-            pass
+            canvas.draw_text("Game Over", (x,y+75), 32, "White")
             
-            
+        elif stage == -3: # win screen
+            canvas.draw_text("Good Job!", (x,y+75), 32, "White")
+            canvas.draw_text("STATS:", (x,y+100),22, "White")
+            canvas.draw_text("Bombs Dropped: " + str(Player.Bombs_Dropped), (x,y+125),22, "White")
+            canvas.draw_text("Time Took: " + str(500 - Game.TIME_REMAINING) + " seconds", (x,y+150),22,"White")
+            canvas.draw_text("Lives left: " + str(Player.Lives), (x,y+175),22,"White")
+        
         else:
             if stage == 0: # Exit stage
                 for border in [self.NorthWall, self.SouthWall, self.EastWall]:
@@ -284,15 +380,29 @@ class Worldspace:
                 if runtime % 60 <= 40: # flashing effect 
                     canvas.draw_text(">>>>", (Game.SCREEN_WIDTH / 2 + 150, Game.SCREEN_HEIGHT / 2 + 25), 32, "White")
         
-        		# TODO Player Exiting Level
-            
-            elif stage == 1: # Level 1
+                if PlayerCharacter.Position.x - PlayerCharacter.Radius > Game.SCREEN_WIDTH and not self.Buffer:
+                    self.Buffer = True
+                    Game.STAGE = min(Game.PREVIOUS_STAGE + 1, Game.MAX_LEVEL)
+                    Game.PREVIOUS_STAGE += 1
+                    Game.Transistion()
+                        
+                    self.Buffer = False
+
+            else:
                 self.Render_Border(canvas)
-                
-                
-            else: # No more stages, Win Screen
-                pass
-            
+                if stage == 1: # Level 1
+                    pass
+
+                elif stage == 2:
+                    pass
+
+                elif stage == 3:
+                    pass
+
+                else: # No more stages, Win Screen
+                    Game.STAGE = -3
+           
+            canvas.draw_text("Stage: " + str(Game.PREVIOUS_STAGE), (Game.SCREEN_WIDTH / 2.5, Game.SCREEN_HEIGHT / 15), 20, "White")
             canvas.draw_text("Time: " + str(Game.TIME_REMAINING), (Game.SCREEN_WIDTH - 110, Game.SCREEN_HEIGHT / 15), 20, "White")
             canvas.draw_text("Lives: " + str(Player.Lives), (20, Game.SCREEN_HEIGHT / 15), 20, "White")
             Game.isPlaying = True
@@ -306,18 +416,29 @@ class Game:
         self.TIME_REMAINING = 500
         
         self.STAGE = -1
-        self.PREVIOUS_STAGE = None
+        self.PREVIOUS_STAGE = 1
+        self.MAX_LEVEL = 4 # last level + 1
         self.isPlaying = False # Take away player control while render
         
         self.Entities = []
         self.Enemies = []
         self.ObjectPipeline = []
         
+        # Enemy init:
+        # __init__(self, Position, Radius, AI):
         self.Metatable = {
             1 : {
                 "PlayerSpawn" : Vector(self.SCREEN_WIDTH / 4,self.SCREEN_HEIGHT / 2),
+                "EnemySpawn" : [Enemy(Vector(120,120), 25)]
+            },
+            2 : {
+                "PlayerSpawn" : Vector(self.SCREEN_WIDTH / 4,self.SCREEN_HEIGHT / 2),
+                "EnemySpawn" : [Enemy(Vector(120,120), 25), Enemy(Vector(45,54), 25)]
+            },
+            3 : {
+                "PlayerSpawn" : Vector(self.SCREEN_WIDTH / 4,self.SCREEN_HEIGHT / 2),
                 "EnemySpawn" : []
-            }
+            },
         }
     
     def Transistion(self): # Whenever moving to new Level
@@ -336,13 +457,12 @@ class Game:
         
         Worldspace.Render(canvas, self.STAGE)
         
-        PlayerCharacter.update()
-        PlayerCharacter.draw(canvas)
-        
         if self.isPlaying:
             self.ObjectPipeline = [self.Entities, self.Enemies]
             
             Interaction.update()
+            PlayerCharacter.update()
+            PlayerCharacter.draw(canvas)
                                       
             for pipeline in self.ObjectPipeline:
                 for Object in pipeline:
@@ -354,14 +474,16 @@ class Game:
             
             
             if len(self.Enemies) == 0: # all enemies killed
-                print("Moving to Exit Stage")
-                PlayerCharacter.canDropBomb = False
-                self.PREVIOUS_STAGE = self.STAGE
-                self.STAGE = 0
+                if self.PREVIOUS_STAGE + 1 == self.MAX_LEVEL:
+                    self.STAGE = -3
+                    self.isPlaying = False
+                else:
+                    PlayerCharacter.canDropBomb = False
+                    self.STAGE = 0
+                
                 
             elif self.TIME_REMAINING <= 0 or Player.Lives == 0: # ran out of time or lives
-                self.PREVIOUS_STAGE = self.STAGE
-                self.STAGE = -2
+                self.STAGE = -1
                 self.isPlaying = False
             
             
@@ -381,6 +503,12 @@ Keyboard = Keyboard()
 
 print("Classes Initalised")
 
+# Cache Spritesheets
+Bomb()
+Explosion(Bomb().Position)
+
+print("Spritesheets Cached")
+
 frame = simplegui.create_frame("Game", Game.SCREEN_WIDTH, Game.SCREEN_HEIGHT)
 frame.set_draw_handler(Game.Draw)
 frame.set_keydown_handler(Keyboard.keyDown)
@@ -388,5 +516,3 @@ frame.set_keyup_handler(Keyboard.keyUp)
 
 print("Game Canvas Started")
 frame.start()
-
-
