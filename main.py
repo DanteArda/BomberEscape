@@ -20,6 +20,8 @@ class Player():
         self.Lives = 3
         self.Score = 0 
         self.Bombs_Dropped = 0
+        
+        print("Score System not used")
 
 class Actor:
     def __init__(self, position, radius, color):
@@ -63,6 +65,8 @@ class Enemy(Actor):
         self.AI = AI
         self.Velocity = Vector(3.33/2, 3.33/2)
         
+        print("WARNING: Enemy Class still has no FollowPlayer Attribute")
+        
     def update(self):
         if self.AI == "FollowPlayer":
             pass
@@ -98,6 +102,8 @@ class Explosion(Spritesheet):
         self.Counter = 0
         self.Born = runtime
         self.Radius = PlayerCharacter.Radius+20 * 2.75
+        
+        print("WARNING: Explosion Class Collision between Player and Explosion non-existant")
     
     def draw(self, canvas):
         # debug mode
@@ -122,7 +128,7 @@ class Explosion(Spritesheet):
         for actor in allActorsCopy:
             if self.hit(actor):
                 if actor == PlayerCharacter:
-                    print("Player")
+                    pass
                     
                 else:
                     if actor in Game.Enemies:
@@ -424,6 +430,8 @@ class Game:
         self.Enemies = []
         self.ObjectPipeline = []
         
+        print("WARNING: Game Class has not tested whether running out of time or lives resets to Welcome Screen")
+        
         # Enemy init:
         # __init__(self, Position, Radius, AI):
         self.Metatable = {
@@ -516,3 +524,5 @@ frame.set_keyup_handler(Keyboard.keyUp)
 
 print("Game Canvas Started")
 frame.start()
+
+
