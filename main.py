@@ -3,11 +3,8 @@ from user305_o32FtUyCKk_0 import Vector
 
 """
 TODO:
-There is a realtime score mechanism.
-
 When the lives go to zero, the welcome screen reappears and all the game sprites are cleared.
 
-While the welcome screen is being displayed the game mechanism is stopped.
 When the welcome screen is clicked, the lives and the score are reset.
 The program displays on the canvas an appropriate text for both the lives and the score.
 
@@ -19,9 +16,25 @@ class Player():
         self.Position = None
         self.Lives = 3
         self.Score = 0 
+        self.Delayed_Score = 0 # for UI
         self.Bombs_Dropped = 0
+        self.Highest_Combo = 0
         
-        print("Score System not used")
+    # unused
+    #def scoreMultiplierToString(self) -> string:
+    #    if self.Score_Multiplier <= 1:
+    #        return ""
+    #    return " (x " + str(self.Score_Multiplier) + ")"
+   
+    def f(self, n):
+        if n == 0: return 0
+        return (300 + (n-1) * 75) + self.f(n-1)
+    
+    def upScore(self, count):
+        self.Score += self.f(count)
+        
+
+        
 
 class Actor:
     def __init__(self, position, radius, color):
@@ -30,6 +43,7 @@ class Actor:
         self.Radius = radius
         self.Color = color
         self.inCollision = False
+        self.ScoreGivenWhenKilled = 300
         
     def draw(self, canvas):
         canvas.draw_circle(self.Position.get_p(), self.Radius, 1, self.Color, self.Color)
@@ -45,7 +59,6 @@ class PlayerCharacter(Actor):
         
         self.delayBetweenBombDrops = 3 # seconds
         self.canDropBomb = False
-        self.hasDroppedBombForFirstTime = False
         
     def update(self):
         self.Position.add(self.Velocity)
@@ -56,22 +69,53 @@ class PlayerCharacter(Actor):
             self.canDropBomb = True
         
 class Enemy(Actor):
-    def __init__(self, Position, Radius, AI = None):
+    def __init__(self, Position, Radius = 25, Velocity = Vector(), AI = ""):
         super().__init__(Position, Radius, "Red")
         
         # Supported AI
         # "FollowPlayer" : Follows the Player
-        # None : Default, moves in a straight line, bouncing off walls
+        # "" or None : Default, moves in a straight line, bouncing off walls
         self.AI = AI
-        self.Velocity = Vector(3.33/2, 3.33/2)
+        
+        if Velocity == Vector():
+            self.Velocity = Vector(3.33/2, 3.33/2)
+        else:
+            self.Velocity = Velocity
         
         print("WARNING: Enemy Class still has no FollowPlayer Attribute")
+        
+    def collide(self, other_actor):
+        normal = self.Position.copy().subtract(other_actor.Position).normalize()
+
+        v1_par = self.Velocity.get_proj(normal)
+        v1_perp = self.Velocity.copy().subtract(v1_par)
+
+        v2_par = other_actor.Velocity.get_proj(normal)
+        v2_perp = other_actor.Velocity.copy().subtract(v2_par)
+        
+        self.Velocity = v2_par + v1_perp
+        other_actor.Velocity = v1_par + v2_perp
         
     def update(self):
         if self.AI == "FollowPlayer":
             pass
         
         self.Position.add(self.Velocity)
+        
+        allActorsCopy = Game.Enemies.copy()
+        allActorsCopy.append(PlayerCharacter)
+        for actor in allActorsCopy:
+            if self.hit(actor) and actor != self:
+                print("HIT")
+                if actor == PlayerCharacter:
+                    pass
+                    
+                else:  
+                    self.collide(actor)
+        
+    def hit(self, actor) -> boolean:
+        distance = actor.Position.copy().subtract(self.Position).length()
+        return distance < actor.Radius + self.Radius
         
 
 class Spritesheet():
@@ -93,7 +137,7 @@ class Spritesheet():
 class Explosion(Spritesheet):
     def __init__(self, Position):
         # explosion sprite from:
-        # royal holloway
+        # Royal Holloway
         # https://www.cs.rhul.ac.uk/courses/CS1830/sprites/explosion-spritesheet.png
         
         super().__init__("https://www.cs.rhul.ac.uk/courses/CS1830/sprites/explosion-spritesheet.png", 9, 9, 74)
@@ -102,6 +146,10 @@ class Explosion(Spritesheet):
         self.Counter = 0
         self.Born = runtime
         self.Radius = PlayerCharacter.Radius+20 * 2.75
+        
+        self.allActorsHit = []
+        
+        Game.ExplosionInstance = self
         
         print("WARNING: Explosion Class Collision between Player and Explosion non-existant")
     
@@ -132,6 +180,9 @@ class Explosion(Spritesheet):
                     
                 else:
                     if actor in Game.Enemies:
+                        if actor not in self.allActorsHit:
+                            self.allActorsHit.append(actor)
+                            
                         Game.Enemies.remove(actor)
         
         if (self.Born + self.Counter) % 3 == 0:
@@ -147,6 +198,8 @@ class Explosion(Spritesheet):
         
     def kill(self):
         # kill both collision and sprite
+        Game.flushToPlayerScore()
+        Game.ExplosionInstance = None
         Game.Entities.remove(self)
 
 class Bomb(Spritesheet):
@@ -335,10 +388,41 @@ class Worldspace:
         self.Border = [self.NorthWall, self.SouthWall, self.EastWall, self.WestWall]
         
         self.Buffer = False
+        self.AcknowledgeNewExplosion = False
     
     def Render_Border(self, canvas):
         for border in self.Border:
             border.draw(canvas)
+            
+    def RenderNextMSG(self, canvas, halt, combo = 1):     
+        if halt == combo or halt == 0: return
+    
+        combo_suffix = ""
+        if combo > 1:
+            combo_suffix = " x" + str(0.25*(combo - 1) + 1)
+        canvas.draw_text("300" + combo_suffix, (70, (Game.SCREEN_HEIGHT / 12) + (45 + 20*(combo-1))), 16, "White")
+        
+        self.RenderNextMSG(canvas, halt, combo + 1)
+        
+            
+    def RenderScoreQueue(self, canvas):
+        killList = Game.returnExplosionCasulties()
+        
+        
+        self.RenderNextMSG(canvas, len(killList) + 1)
+        Player.Highest_Combo = max(Player.Highest_Combo, len(killList))
+            
+        # debugging
+        #canvas.draw_text("300", (70, (Game.SCREEN_HEIGHT / 12) + (45 + 20*0)), 16, "White")
+        #canvas.draw_text("300", (70, (Game.SCREEN_HEIGHT / 12) + (45 + 20*2)), 16, "White")
+        
+
+        canvas.draw_text("Score: " + str(Player.Delayed_Score), (20, Game.SCREEN_HEIGHT / 7.5), 17, "White")
+        
+ 
+        
+        
+  
     
     def Render(self, canvas, stage):
         # these two values give the headline, you should add to Y to bring text lower
@@ -351,6 +435,7 @@ class Worldspace:
                 print("Going to Level", Game.STAGE)
                 Game.Transistion()
             # Welcome Page
+            canvas.draw_text("The Dark Souls of Puzzle Games", (x,y-50), 17, "Grey","monospace")
             
             canvas.draw_text("Bomber Escape", (x,y), 50, "Red")
             canvas.draw_text("A CS1821 Game", (x,y+25), 20, "Grey")
@@ -358,24 +443,32 @@ class Worldspace:
             canvas.draw_text("How to Play:", (x,y+75), 32, "White")
             canvas.draw_text("> Use Arrow Keys to Navigate", (x,y+100),22, "White")
             canvas.draw_text("> Spacebar to drop Bomb", (x,y+125),22, "White")
-            canvas.draw_text("> Avoid the Bomb, Kill the enemies", (x,y+150),22, "White")
+            canvas.draw_text("> Avoid the Bomb, Kill the Enemies", (x,y+150),22, "White")
             canvas.draw_text("> You ONLY have " + str(Game.TIME_REMAINING) + " seconds", (x,y+175),22, "White")
             canvas.draw_text("> You have Three Lives", (x,y+200),22, "White")
+            canvas.draw_text("> Bomb has 3 second fuse time.", (x,y+225),22, "White")
             
-            canvas.draw_text("Good Luck!", (x,y+250),28, "White")
+            canvas.draw_text("Good Luck!", (x,y+275),28, "White")
             
             if runtime % 60 <= 40: # flashing effect 
-                canvas.draw_text("Press Spacebar to Start Game", (x-50,y+300),32, "Red")
+                canvas.draw_text("Press [SPACEBAR] to Start Game", (x-60,y+350),32, "Red")
         
-        elif stage == -2: # Game Over Screen
-            canvas.draw_text("Game Over", (x,y+75), 32, "White")
+        elif stage == -2: # Game Over 
+            # game over has to reset entire game, cannot show game over screen :(
+            pass
             
         elif stage == -3: # win screen
-            canvas.draw_text("Good Job!", (x,y+75), 32, "White")
-            canvas.draw_text("STATS:", (x,y+100),22, "White")
-            canvas.draw_text("Bombs Dropped: " + str(Player.Bombs_Dropped), (x,y+125),22, "White")
-            canvas.draw_text("Time Took: " + str(500 - Game.TIME_REMAINING) + " seconds", (x,y+150),22,"White")
-            canvas.draw_text("Lives left: " + str(Player.Lives), (x,y+175),22,"White")
+            canvas.draw_text("Congratulations!", (x,y+75), 32, "White")
+            canvas.draw_text("SCORE: " + str(Player.Score), (x,y+100),22,"White")
+            canvas.draw_text("Highest Combo: " + str(Player.Highest_Combo), (x,y+125),22,"White")
+
+            if Player.Highest_Combo < 2:
+                canvas.draw_text("lol noob", (x + 150, y + 147.5), 30, "Red")
+            
+            canvas.draw_text("STATS:", (x,y+175),22, "White")
+            canvas.draw_text("Bombs Dropped: " + str(Player.Bombs_Dropped), (x,y+200),22, "White")
+            canvas.draw_text("Time Took: " + str(500 - Game.TIME_REMAINING) + " seconds", (x,y+225),22,"White")
+            canvas.draw_text("Lives left: " + str(Player.Lives), (x,y+250),22,"White")
         
         else:
             if stage == 0: # Exit stage
@@ -411,6 +504,7 @@ class Worldspace:
             canvas.draw_text("Stage: " + str(Game.PREVIOUS_STAGE), (Game.SCREEN_WIDTH / 2.5, Game.SCREEN_HEIGHT / 15), 20, "White")
             canvas.draw_text("Time: " + str(Game.TIME_REMAINING), (Game.SCREEN_WIDTH - 110, Game.SCREEN_HEIGHT / 15), 20, "White")
             canvas.draw_text("Lives: " + str(Player.Lives), (20, Game.SCREEN_HEIGHT / 15), 20, "White")
+            self.RenderScoreQueue(canvas)
             Game.isPlaying = True
     
 
@@ -419,7 +513,7 @@ class Game:
         self.SCREEN_WIDTH = 512
         self.SCREEN_HEIGHT = 512
         
-        self.TIME_REMAINING = 500
+        self.TIME_REMAINING = 100
         
         self.STAGE = -1
         self.PREVIOUS_STAGE = 1
@@ -430,6 +524,8 @@ class Game:
         self.Enemies = []
         self.ObjectPipeline = []
         
+        self.ExplosionInstance = None
+        
         print("WARNING: Game Class has not tested whether running out of time or lives resets to Welcome Screen")
         
         # Enemy init:
@@ -437,27 +533,41 @@ class Game:
         self.Metatable = {
             1 : {
                 "PlayerSpawn" : Vector(self.SCREEN_WIDTH / 4,self.SCREEN_HEIGHT / 2),
-                "EnemySpawn" : [Enemy(Vector(120,120), 25)]
+                "EnemySpawn" : [Enemy(Vector(120,120))]
             },
             2 : {
                 "PlayerSpawn" : Vector(self.SCREEN_WIDTH / 4,self.SCREEN_HEIGHT / 2),
-                "EnemySpawn" : [Enemy(Vector(120,120), 25), Enemy(Vector(45,54), 25)]
+                "EnemySpawn" : [Enemy(Vector(120,120)), Enemy(Vector(45,54), 17)]
             },
             3 : {
                 "PlayerSpawn" : Vector(self.SCREEN_WIDTH / 4,self.SCREEN_HEIGHT / 2),
-                "EnemySpawn" : []
+                "EnemySpawn" : [Enemy(Vector(self.SCREEN_WIDTH / 2, self.SCREEN_HEIGHT/2), 23, Vector(0,3.33))]
             },
         }
+        
+    def flushToPlayerScore(self):
+        print("Flushed to Player Score")
+        if len(self.returnExplosionCasulties()) > 0:
+            Player.upScore(len(self.returnExplosionCasulties()))
+        Player.Delayed_Score = Player.Score
+ 
+        
+    def reset(self): # if player loses life
+        pass
     
     def Transistion(self): # Whenever moving to new Level
         PlayerCharacter.Position = self.Metatable[self.STAGE]["PlayerSpawn"]
         print("Moved Player")
         
-        for Enemy in self.Metatable[self.STAGE]["EnemySpawn"]:
-            self.Enemies.append(Enemy)
+        self.Enemies = self.Metatable[self.STAGE]["EnemySpawn"]
         print("Spawning Enemies")
         
         print("Ready!")
+        
+    def returnExplosionCasulties(self) -> list:
+        if self.ExplosionInstance:
+            return self.ExplosionInstance.allActorsHit
+        return []
         
     def Draw(self, canvas):
         global runtime
@@ -474,11 +584,14 @@ class Game:
                                       
             for pipeline in self.ObjectPipeline:
                 for Object in pipeline:
+                    Object.update()
+                    Object.draw(canvas)
+                    
                     PlayerCharacter.update()
                     PlayerCharacter.draw(canvas)
                     
-                    Object.update()
-                    Object.draw(canvas)
+                    
+
             
             
             if len(self.Enemies) == 0: # all enemies killed
@@ -524,5 +637,4 @@ frame.set_keyup_handler(Keyboard.keyUp)
 
 print("Game Canvas Started")
 frame.start()
-
 
