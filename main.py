@@ -194,7 +194,17 @@ class Explosion(Spritesheet):
                 if self.frameIndex[1] == self.rows:
                     self.kill()
         
-                    
+        if self.hit(PlayerCharacter):
+            Player.Lives -= 1
+            if self in Game.Entities:
+                Game.Entities.remove(self)
+            if Player.Lives <= 0:
+                Game.STAGE = -2
+                Game.isPlaying = False
+        for enemy in Game.Enemies:
+            if self.hit(enemy):
+                Game.Enemies.remove(enemy)
+                Game.points += 100           
         
     def kill(self):
         # kill both collision and sprite
