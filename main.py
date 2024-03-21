@@ -52,6 +52,11 @@ class Actor:
         self.Position.add(self.Velocity)
         self.Velocity.multiply(0.85)
         
+    def collide(self, other_actor):
+        normal = self.position.copy().subtract(other_actor.Position).normalize()
+        
+        self.Velocity.reflect(normal)
+        other_actor.Velocity.reflect(normal)
       
 class PlayerCharacter(Actor):
     def __init__(self):
@@ -115,7 +120,7 @@ class Enemy(Actor):
         
     def hit(self, actor) -> boolean:
         distance = actor.Position.copy().subtract(self.Position).length()
-        return distance < actor.Radius + self.Radius
+        return distance < (actor.Radius + self.Radius)
         
 
 class Spritesheet():
@@ -204,7 +209,7 @@ class Explosion(Spritesheet):
         for enemy in Game.Enemies:
             if self.hit(enemy):
                 Game.Enemies.remove(enemy)
-                Game.points += 100           
+                Game.points += 100
         
     def kill(self):
         # kill both collision and sprite
@@ -565,7 +570,7 @@ class Game:
     def reset(self): # if player loses life
         pass
     
-    def Transistion(self): # Whenever moving to new Level
+    def Transistion(self): # Whenever moving to new Level
         PlayerCharacter.Position = self.Metatable[self.STAGE]["PlayerSpawn"]
         print("Moved Player")
         
@@ -584,6 +589,8 @@ class Game:
         runtime += 1
         
         Worldspace.Render(canvas, self.STAGE)
+        
+        self.update_collisions()
         
         if self.isPlaying:
             self.ObjectPipeline = [self.Entities, self.Enemies]
@@ -621,6 +628,10 @@ class Game:
             if runtime % 60 == 0 and self.STAGE != 0:
                 self.TIME_REMAINING -= 1
                 
+    def update_collisions(self):
+        for enemy in self.Enemies:
+            if enemy.hit(PlayerCharacter):
+                enemy.collide(PlayerCharacter)
            
     
 # init class
@@ -647,4 +658,3 @@ frame.set_keyup_handler(Keyboard.keyUp)
 
 print("Game Canvas Started")
 frame.start()
-
