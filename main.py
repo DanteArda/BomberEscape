@@ -3,11 +3,6 @@ from user305_o32FtUyCKk_0 import Vector
 
 """
 TODO:
-When the lives go to zero, the welcome screen reappears and all the game sprites are cleared.
-
-When the welcome screen is clicked, the lives and the score are reset.
-The program displays on the canvas an appropriate text for both the lives and the score.
-
 Pursue and evade effects (e.g., sprites that “gravitate” towards or chase the player).
 """
 
@@ -32,8 +27,14 @@ class Player():
     
     def upScore(self, count):
         self.Score += self.f(count)
-        
-
+    
+    def reset(self):
+        self.Position = None
+        self.Lives = 4
+        self.Score = 0 
+        self.Delayed_Score = 0 # for UI
+        self.Bombs_Dropped = 0
+        self.Highest_Combo = 0
         
 
 class Actor:
@@ -57,6 +58,7 @@ class Actor:
         
         self.Velocity.reflect(normal)
         other_actor.Velocity.reflect(normal)
+        
       
 class PlayerCharacter(Actor):
     def __init__(self):
@@ -72,6 +74,10 @@ class PlayerCharacter(Actor):
 
         if (self.timeSinceLastDroppedBomb + 60 * self.delayBetweenBombDrops) <= runtime:
             self.canDropBomb = True
+            
+    def tookDamage(self):
+        Player.Lives -= 1
+        Game.reset_stage()
         
 class Enemy(Actor):
     def __init__(self, Position, Radius = 25, Velocity = Vector(), AI = ""):
@@ -111,9 +117,8 @@ class Enemy(Actor):
         allActorsCopy.append(PlayerCharacter)
         for actor in allActorsCopy:
             if self.hit(actor) and actor != self:
-                print("HIT")
                 if actor == PlayerCharacter:
-                    pass
+                    PlayerCharacter.tookDamage()
                     
                 else:  
                     self.collide(actor)
@@ -181,7 +186,8 @@ class Explosion(Spritesheet):
         for actor in allActorsCopy:
             if self.hit(actor):
                 if actor == PlayerCharacter:
-                    pass
+                    self.kill()
+                    PlayerCharacter.tookDamage()
                     
                 else:
                     if actor in Game.Enemies:
@@ -199,17 +205,17 @@ class Explosion(Spritesheet):
                 if self.frameIndex[1] == self.rows:
                     self.kill()
         
-        if self.hit(PlayerCharacter):
-            Player.Lives -= 1
-            if self in Game.Entities:
-                Game.Entities.remove(self)
-            if Player.Lives <= 0:
-                Game.STAGE = -2
-                Game.isPlaying = False
-        for enemy in Game.Enemies:
-            if self.hit(enemy):
-                Game.Enemies.remove(enemy)
-                Game.points += 100
+        #if self.hit(PlayerCharacter):
+        #    Player.Lives -= 1
+        #    if self in Game.Entities:
+        #        Game.Entities.remove(self)
+        #    if Player.Lives <= 0:
+        #        Game.STAGE = -2
+        #        Game.isPlaying = False
+        #for enemy in Game.Enemies:
+        #    if self.hit(enemy):
+        #       Game.Enemies.remove(enemy)
+        #        Game.points += 100
         
     def kill(self):
         # kill both collision and sprite
@@ -434,10 +440,6 @@ class Worldspace:
 
         canvas.draw_text("Score: " + str(Player.Delayed_Score), (20, Game.SCREEN_HEIGHT / 7.5), 17, "White")
         
- 
-        
-        
-  
     
     def Render(self, canvas, stage):
         # these two values give the headline, you should add to Y to bring text lower
@@ -469,7 +471,9 @@ class Worldspace:
                 canvas.draw_text("Press [SPACEBAR] to Start Game", (x-60,y+350),32, "Red")
         
         elif stage == -2: # Game Over 
-            # game over has to reset entire game, cannot show game over screen :(
+            # Originally this was supposed to show a Game Over screen
+            # But in the Games Group Project Requirements, it states:
+            # When the lives go to zero, the welcome screen reappears and all the game sprites are cleared.
             pass
             
         elif stage == -3: # win screen
@@ -482,7 +486,7 @@ class Worldspace:
             
             canvas.draw_text("STATS:", (x,y+175),22, "White")
             canvas.draw_text("Bombs Dropped: " + str(Player.Bombs_Dropped), (x,y+200),22, "White")
-            canvas.draw_text("Time Took: " + str(500 - Game.TIME_REMAINING) + " seconds", (x,y+225),22,"White")
+            canvas.draw_text("Time Took: " + str(Game.TOTAL_TIME - Game.TIME_REMAINING) + " seconds", (x,y+225),22,"White")
             canvas.draw_text("Lives left: " + str(Player.Lives), (x,y+250),22,"White")
         
         else:
@@ -529,6 +533,7 @@ class Game:
         self.SCREEN_HEIGHT = 512
         
         self.TIME_REMAINING = 100
+        self.TOTAL_TIME = self.TIME_REMAINING
         
         self.STAGE = -1
         self.PREVIOUS_STAGE = 1
@@ -560,24 +565,61 @@ class Game:
             },
         }
         
+        self.CacheMetatable = []
+        
     def flushToPlayerScore(self):
         print("Flushed to Player Score")
         if len(self.returnExplosionCasulties()) > 0:
             Player.upScore(len(self.returnExplosionCasulties()))
         Player.Delayed_Score = Player.Score
- 
         
-    def reset(self): # if player loses life
-        pass
+    def reset(self):
+        self.TIME_REMAINING = 100
+        self.TOTAL_TIME = self.TIME_REMAINING
+        
+        self.STAGE = -1
+        self.PREVIOUS_STAGE = 1
+        self.MAX_LEVEL = 4 # last level + 1
+        self.isPlaying = False # Take away player control while render
+        
+        self.Entities = []
+        self.Enemies = []
+        self.ObjectPipeline = []
+        
+        self.ExplosionInstance = None
     
-    def Transistion(self): # Whenever moving to new Level
+    def reset_all(self): # reset the whole game
+        # just reset all the init to default
+        self.reset()
+        self.ObjectPipeline.clear()
+        Player.reset()
+        
+    def reset_stage(self):
+        print("Restarting Stage " + str(self.STAGE))
+           
+        # very adhoc solution but Metatable always gets overridden for some reason?
+        if self.STAGE == 1:
+            PlayerCharacter.Position = Vector(self.SCREEN_WIDTH / 4,self.SCREEN_HEIGHT / 2)
+            self.Enemies = [Enemy(Vector(120,120))]
+            
+        elif self.STAGE == 2:
+            PlayerCharacter.Position = Vector(self.SCREEN_WIDTH / 4,self.SCREEN_HEIGHT / 2)
+            self.Enemies = [Enemy(Vector(120,120)), Enemy(Vector(45,54), 17)]
+            
+        elif self.STAGE == 3:
+            PlayerCharacter.Position = Vector(self.SCREEN_WIDTH / 4,self.SCREEN_HEIGHT / 2)
+            self.Enemies = [Enemy(Vector(self.SCREEN_WIDTH / 2, self.SCREEN_HEIGHT/2), 23, Vector(0,3.33))]
+            
+        print("OK")
+    
+    def Transistion(self): # Whenever moving to new Level        
         PlayerCharacter.Position = self.Metatable[self.STAGE]["PlayerSpawn"]
         print("Moved Player")
         
         self.Enemies = self.Metatable[self.STAGE]["EnemySpawn"]
         print("Spawning Enemies")
         
-        print("Ready!")
+        print("OK")
         
     def returnExplosionCasulties(self) -> list:
         if self.ExplosionInstance:
@@ -606,12 +648,8 @@ class Game:
                     
                     PlayerCharacter.update()
                     PlayerCharacter.draw(canvas)
-                    
-                    
-
             
-            
-            if len(self.Enemies) == 0: # all enemies killed
+            if len(self.Enemies) == 0 and self.isPlaying: # all enemies killed
                 if self.PREVIOUS_STAGE + 1 == self.MAX_LEVEL:
                     self.STAGE = -3
                     self.isPlaying = False
@@ -620,7 +658,8 @@ class Game:
                     self.STAGE = 0
                 
                 
-            elif self.TIME_REMAINING <= 0 or Player.Lives == 0: # ran out of time or lives
+            elif self.TIME_REMAINING <= 0 or Player.Lives <= 0: # ran out of time or lives
+                self.reset_all()
                 self.STAGE = -1
                 self.isPlaying = False
             
