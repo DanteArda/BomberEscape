@@ -160,8 +160,6 @@ class Explosion(Spritesheet):
         self.allActorsHit = []
         
         Game.ExplosionInstance = self
-        
-        print("WARNING: Explosion Class Collision between Player and Explosion non-existant")
     
     def draw(self, canvas):
         # debug mode
@@ -219,7 +217,7 @@ class Explosion(Spritesheet):
         
     def kill(self):
         # kill both collision and sprite
-        Game.flushToPlayerScore()
+        Game.flushToPlayerScore() # flush gathered score to Player class
         Game.ExplosionInstance = None
         Game.Entities.remove(self)
 
@@ -236,6 +234,8 @@ class Bomb(Spritesheet):
         PlayerCharacter.canDropBomb = False
         PlayerCharacter.timeSinceLastDroppedBomb = runtime
         Player.Bombs_Dropped += 1
+        
+        Game.BombInstance = self
  
        
     def update(self):
@@ -249,6 +249,10 @@ class Bomb(Spritesheet):
             
     def explode(self):
         Game.Entities.append(Explosion(self.Position))
+        self.kill()
+    
+    def kill(self):
+        Game.BombInstance = None
         Game.Entities.remove(self)
     
     def draw(self, canvas): 
@@ -508,6 +512,7 @@ class Worldspace:
 
             else:
                 self.Render_Border(canvas)
+                ## use below to add any extra walls, objects, entities
                 if stage == 1: # Level 1
                     pass
 
@@ -532,19 +537,8 @@ class Game:
         self.SCREEN_WIDTH = 512
         self.SCREEN_HEIGHT = 512
         
-        self.TIME_REMAINING = 100
-        self.TOTAL_TIME = self.TIME_REMAINING
+        self.reset()
         
-        self.STAGE = -1
-        self.PREVIOUS_STAGE = 1
-        self.MAX_LEVEL = 4 # last level + 1
-        self.isPlaying = False # Take away player control while render
-        
-        self.Entities = []
-        self.Enemies = []
-        self.ObjectPipeline = []
-        
-        self.ExplosionInstance = None
         
         print("WARNING: Game Class has not tested whether running out of time or lives resets to Welcome Screen")
         
@@ -565,7 +559,6 @@ class Game:
             },
         }
         
-        self.CacheMetatable = []
         
     def flushToPlayerScore(self):
         print("Flushed to Player Score")
@@ -574,6 +567,7 @@ class Game:
         Player.Delayed_Score = Player.Score
         
     def reset(self):
+        # __init__
         self.TIME_REMAINING = 100
         self.TOTAL_TIME = self.TIME_REMAINING
         
@@ -587,11 +581,16 @@ class Game:
         self.ObjectPipeline = []
         
         self.ExplosionInstance = None
+        self.BombInstance = None
     
     def reset_all(self): # reset the whole game
         # just reset all the init to default
         self.reset()
         self.ObjectPipeline.clear()
+        
+        if self.ExplosionInstance: self.ExplosionInstance.kill()
+        if self.BombInstance: self.BombInstance.kill()
+        
         Player.reset()
         
     def reset_stage(self):
@@ -619,7 +618,7 @@ class Game:
         self.Enemies = self.Metatable[self.STAGE]["EnemySpawn"]
         print("Spawning Enemies")
         
-        print("OK")
+        print("OK") 
         
     def returnExplosionCasulties(self) -> list:
         if self.ExplosionInstance:
