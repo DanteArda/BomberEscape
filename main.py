@@ -80,20 +80,18 @@ class PlayerCharacter(Actor):
         Game.reset_stage()
         
 class Enemy(Actor):
-    def __init__(self, Position, Radius = 25, Velocity = Vector(), AI = ""):
+    def __init__(self, Position, Radius = 25, Velocity = Vector(), AI = False):
         super().__init__(Position, Radius, "Red")
         
-        # Supported AI
-        # "FollowPlayer" : Follows the Player
-        # "" or None : Default, moves in a straight line, bouncing off walls
+        # Supported AI : boolean value
+        # "True" : Follows the Player
+        # "False" : Default, moves in a straight line, bouncing off walls
         self.AI = AI
         
         if Velocity == Vector():
             self.Velocity = Vector(3.33/2, 3.33/2)
         else:
             self.Velocity = Velocity
-        
-        print("WARNING: Enemy Class still has no FollowPlayer Attribute")
         
     def collide(self, other_actor):
         normal = self.Position.copy().subtract(other_actor.Position).normalize()
@@ -107,9 +105,12 @@ class Enemy(Actor):
         self.Velocity = v2_par + v1_perp
         other_actor.Velocity = v1_par + v2_perp
         
+    def calculateVelocityToPlayer(self) -> Vector():
+        return Vector()
+        
     def update(self):
-        if self.AI == "FollowPlayer":
-            pass
+        if self.AI:
+            self.Velocity = self.calculateVelocityToPlayer()
         
         self.Position.add(self.Velocity)
         
@@ -252,8 +253,8 @@ class Bomb(Spritesheet):
         self.kill()
     
     def kill(self):
-        Game.BombInstance = None
         Game.Entities.remove(self)
+        Game.BombInstance = None
     
     def draw(self, canvas): 
         canvas.draw_image(self.image,
@@ -484,9 +485,6 @@ class Worldspace:
             canvas.draw_text("Congratulations!", (x,y+75), 32, "White")
             canvas.draw_text("SCORE: " + str(Player.Score), (x,y+100),22,"White")
             canvas.draw_text("Highest Combo: " + str(Player.Highest_Combo), (x,y+125),22,"White")
-
-            if Player.Highest_Combo < 2:
-                canvas.draw_text("lol noob", (x + 150, y + 147.5), 30, "Red")
             
             canvas.draw_text("STATS:", (x,y+175),22, "White")
             canvas.draw_text("Bombs Dropped: " + str(Player.Bombs_Dropped), (x,y+200),22, "White")
@@ -530,7 +528,6 @@ class Worldspace:
             canvas.draw_text("Lives: " + str(Player.Lives), (20, Game.SCREEN_HEIGHT / 15), 20, "White")
             self.RenderScoreQueue(canvas)
             Game.isPlaying = True
-    
 
 class Game:
     def __init__(self):
@@ -538,9 +535,6 @@ class Game:
         self.SCREEN_HEIGHT = 512
         
         self.reset()
-        
-        
-        print("WARNING: Game Class has not tested whether running out of time or lives resets to Welcome Screen")
         
         # Enemy init:
         # __init__(self, Position, Radius, AI):
