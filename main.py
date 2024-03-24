@@ -6,6 +6,17 @@ TODO:
 Pursue and evade effects (e.g., sprites that “gravitate” towards or chase the player).
 """
 
+# make sure n is within the range
+def clamp(n, min, max):
+    if n > max:
+        return max
+    
+    elif n < min:
+        return min
+    
+    return n
+    
+
 class Player():
     def __init__(self):
         self.Position = None
@@ -88,10 +99,11 @@ class Enemy(Actor):
         # "False" : Default, moves in a straight line, bouncing off walls
         self.AI = AI
         
-        if Velocity == Vector():
+        
+        if Velocity == Vector() or not self.AI:
             self.Velocity = Vector(3.33/2, 3.33/2)
         else:
-            self.Velocity = Velocity
+            self.Velocity = Velocity.copy()
         
     def collide(self, other_actor):
         normal = self.Position.copy().subtract(other_actor.Position).normalize()
@@ -105,12 +117,22 @@ class Enemy(Actor):
         self.Velocity = v2_par + v1_perp
         other_actor.Velocity = v1_par + v2_perp
         
-    def calculateVelocityToPlayer(self) -> Vector():
-        return Vector()
+    def calculateVelocityToReachPlayer(self) -> Vector():
+        # to be honest I have no clue why we settled on 3.33/2 for speed
+        # probably a lot of trial and error to get the right speed feeling for the enemy
+        
+        # pursuit
+        # it will attempt to 'guess' where the player will goto next using the player's velocity and position
+        predictedPlayerCharacterPosition = PlayerCharacter.Position.add(PlayerCharacter.Velocity).copy()
+        
+        # then use that to calculate its own velocity
+        requestedVelocity = (predictedPlayerCharacterPosition.subtract(self.Position)).get_normalized() * 3.33/1.25
+        
+        return requestedVelocity
         
     def update(self):
         if self.AI:
-            self.Velocity = self.calculateVelocityToPlayer()
+            self.Velocity = self.calculateVelocityToReachPlayer()
         
         self.Position.add(self.Velocity)
         
@@ -537,19 +559,27 @@ class Game:
         self.reset()
         
         # Enemy init:
-        # __init__(self, Position, Radius, AI):
+        # def __init__(self, Position, Radius = 25, Velocity = Vector(), AI = False):
         self.Metatable = {
             1 : {
                 "PlayerSpawn" : Vector(self.SCREEN_WIDTH / 4,self.SCREEN_HEIGHT / 2),
-                "EnemySpawn" : [Enemy(Vector(120,120))]
+                "EnemySpawn" : [
+                    Enemy(Vector(120,120))
+                ]
             },
             2 : {
                 "PlayerSpawn" : Vector(self.SCREEN_WIDTH / 4,self.SCREEN_HEIGHT / 2),
-                "EnemySpawn" : [Enemy(Vector(120,120)), Enemy(Vector(45,54), 17)]
+                "EnemySpawn" : [
+                    Enemy(Vector(120,120)), 
+                    Enemy(Vector(45,54), 17)
+                ]
             },
             3 : {
                 "PlayerSpawn" : Vector(self.SCREEN_WIDTH / 4,self.SCREEN_HEIGHT / 2),
-                "EnemySpawn" : [Enemy(Vector(self.SCREEN_WIDTH / 2, self.SCREEN_HEIGHT/2), 23, Vector(0,3.33))]
+                "EnemySpawn" : [
+                    Enemy(Vector(self.SCREEN_WIDTH / 2, self.SCREEN_HEIGHT/2), 23, Vector(0,3.33/2)),
+                    Enemy(Vector(475,250), 25, Vector(), True), 
+                ]
             },
         }
         
@@ -579,16 +609,19 @@ class Game:
     
     def reset_all(self): # reset the whole game
         # just reset all the init to default
+        self.forceKillObj(Bomb)
+        self.forceKillObj(Explosion)
+        
         self.reset()
         self.ObjectPipeline.clear()
-        
-        if self.ExplosionInstance: self.ExplosionInstance.kill()
-        if self.BombInstance: self.BombInstance.kill()
         
         Player.reset()
         
     def reset_stage(self):
         print("Restarting Stage " + str(self.STAGE))
+        
+        self.forceKillObj(Bomb)
+        self.forceKillObj(Explosion)
            
         # very adhoc solution but Metatable always gets overridden for some reason?
         if self.STAGE == 1:
@@ -601,9 +634,15 @@ class Game:
             
         elif self.STAGE == 3:
             PlayerCharacter.Position = Vector(self.SCREEN_WIDTH / 4,self.SCREEN_HEIGHT / 2)
-            self.Enemies = [Enemy(Vector(self.SCREEN_WIDTH / 2, self.SCREEN_HEIGHT/2), 23, Vector(0,3.33))]
+            self.Enemies = [Enemy(Vector(self.SCREEN_WIDTH / 2, self.SCREEN_HEIGHT/2), 23, Vector(0,3.33)), Enemy(Vector(475,250), 25, Vector(), True)]
             
         print("OK")
+        
+    def forceKillObj(self, obj):
+        for objInstance in Game.Entities:
+            if isinstance(objInstance, obj):
+                objInstance.kill()
+            
     
     def Transistion(self): # Whenever moving to new Level        
         PlayerCharacter.Position = self.Metatable[self.STAGE]["PlayerSpawn"]
