@@ -15,6 +15,12 @@ class Player():
         self.Bombs_Dropped = 0
         self.Highest_Combo = 0
         
+    # unused
+    #def scoreMultiplierToString(self) -> string:
+    #    if self.Score_Multiplier <= 1:
+    #        return ""
+    #    return " (x " + str(self.Score_Multiplier) + ")"
+   
     def f(self, n):
         if n == 0: return 0
         return (300 + (n-1) * 75) + self.f(n-1)
@@ -77,6 +83,9 @@ class Enemy(Actor):
     def __init__(self, Position, Radius = 25, Velocity = Vector(), AI = False):
         super().__init__(Position, Radius, "Red")
         
+        # Supported AI : boolean value
+        # "True" : Follows the Player
+        # "False" : Default, moves in a straight line, bouncing off walls
         self.AI = AI
         
         if Velocity == Vector():
@@ -194,6 +203,18 @@ class Explosion(Spritesheet):
             
                 if self.frameIndex[1] == self.rows:
                     self.kill()
+        
+        #if self.hit(PlayerCharacter):
+        #    Player.Lives -= 1
+        #    if self in Game.Entities:
+        #        Game.Entities.remove(self)
+        #    if Player.Lives <= 0:
+        #        Game.STAGE = -2
+        #        Game.isPlaying = False
+        #for enemy in Game.Enemies:
+        #    if self.hit(enemy):
+        #       Game.Enemies.remove(enemy)
+        #        Game.points += 100
         
     def kill(self):
         # kill both collision and sprite
@@ -417,6 +438,9 @@ class Worldspace:
         self.RenderNextMSG(canvas, len(killList) + 1)
         Player.Highest_Combo = max(Player.Highest_Combo, len(killList))
             
+        # debugging
+        #canvas.draw_text("300", (70, (Game.SCREEN_HEIGHT / 12) + (45 + 20*0)), 16, "White")
+        #canvas.draw_text("300", (70, (Game.SCREEN_HEIGHT / 12) + (45 + 20*2)), 16, "White")
         
 
         canvas.draw_text("Score: " + str(Player.Delayed_Score), (20, Game.SCREEN_HEIGHT / 7.5), 17, "White")
@@ -505,48 +529,12 @@ class Worldspace:
             self.RenderScoreQueue(canvas)
             Game.isPlaying = True
 
-class StaticObstacle:
-    def __init__(self, position, width, height, color="Grey"):
-        self.Position = position
-        self.Width = width
-        self.Height = height
-        self.Color = color
-
-    def draw(self, canvas):
-        canvas.draw_polygon([
-            (self.Position.x - self.Width / 2, self.Position.y - self.Height / 2),
-            (self.Position.x + self.Width / 2, self.Position.y - self.Height / 2),
-            (self.Position.x + self.Width / 2, self.Position.y + self.Height / 2),
-            (self.Position.x - self.Width / 2, self.Position.y + self.Height / 2)
-        ], 1, self.Color, self.Color)
-
-    def collide(self, actor):
-        # Collision detection logic here...
-        pass
-
 class Game:
     def __init__(self):
         self.SCREEN_WIDTH = 512
         self.SCREEN_HEIGHT = 512
         
         self.reset()
-        
-        self.map_2_walls = [(170, 100, 170, 5),
-                            (170, 400, 170, 5),
-                            
-                            (100, 170, 5, 170),
-                            (400, 170, 5, 170),]
-        
-        self.map_3_walls = [(100, 100, 100, 5),
-                            (300, 100, 100, 5),
-                            (100, 400, 100, 5),
-                            (300, 400, 100, 5),
-                            
-                            (100, 100, 5, 100),
-                            (400, 100, 5, 100),
-                            (100, 300, 5, 100),
-                            (400, 300, 5, 105)]
-        
         
         # Enemy init:
         # __init__(self, Position, Radius, AI):
@@ -639,23 +627,6 @@ class Game:
         
         self.update_collisions()
         
-        if self.STAGE == 2:
-            for wall in self.map_2_walls:
-                canvas.draw_polygon([
-                    (wall[0], wall[1]),
-                    (wall[0] + wall[2], wall[1]),
-                    (wall[0] + wall[2], wall[1] + wall[3]),
-                    (wall[0], wall[1] + wall[3])
-                ], 1, 'Yellow', 'Yellow')
-        elif self.STAGE == 3:
-            for wall in self.map_3_walls:
-                canvas.draw_polygon([
-                    (wall[0], wall[1]),
-                    (wall[0] + wall[2], wall[1]),
-                    (wall[0] + wall[2], wall[1] + wall[3]),
-                    (wall[0], wall[1] + wall[3])
-                ], 1, 'Yellow', 'Yellow')
-        
         if self.isPlaying:
             self.ObjectPipeline = [self.Entities, self.Enemies]
             
@@ -688,7 +659,6 @@ class Game:
             
             if runtime % 60 == 0 and self.STAGE != 0:
                 self.TIME_REMAINING -= 1
-         
                 
     def update_collisions(self):
         for enemy in self.Enemies:
