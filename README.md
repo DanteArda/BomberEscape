@@ -4,7 +4,7 @@
 To be ran via CodeSkulptor3 (py ver. 3)
 
 [Github Link](https://github.com/DanteArda/BomberEscape)  
-[CodeSkulptor3 Link]()
+[CodeSkulptor3 Link](https://py3.codeskulptor.org/#user309_xEHelp1hPV_0.py)
 
 ### Requirements
 
