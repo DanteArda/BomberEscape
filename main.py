@@ -1,11 +1,6 @@
 import simplegui
 from user305_o32FtUyCKk_0 import Vector
 
-"""
-TODO:
-Pursue and evade effects (e.g., sprites that “gravitate” towards or chase the player).
-"""
-
 # make sure n is within the range
 def clamp(n, min, max):
     if n > max:
