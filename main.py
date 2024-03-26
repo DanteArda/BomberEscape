@@ -659,8 +659,6 @@ class Game:
         
         Worldspace.Render(canvas, self.STAGE)
         
-        self.update_collisions()
-        
         if self.isPlaying:
             self.ObjectPipeline = [self.Entities, self.Enemies]
             
@@ -693,11 +691,6 @@ class Game:
             
             if runtime % 60 == 0 and self.STAGE != 0:
                 self.TIME_REMAINING -= 1
-                
-    def update_collisions(self):
-        for enemy in self.Enemies:
-            if enemy.hit(PlayerCharacter):
-                enemy.collide(PlayerCharacter)
            
     
 # init class
