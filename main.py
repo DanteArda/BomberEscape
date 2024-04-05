@@ -11,12 +11,6 @@ class Player():
         self.Delayed_Score = 0 # for UI
         self.Bombs_Dropped = 0
         self.Highest_Combo = 0
-        
-    # unused
-    #def scoreMultiplierToString(self) -> string:
-    #    if self.Score_Multiplier <= 1:
-    #        return ""
-    #    return " (x " + str(self.Score_Multiplier) + ")"
    
     def f(self, n):
         if n == 0: return 0
@@ -145,7 +139,6 @@ class Enemy(Actor):
 
 class Spritesheet():
     def __init__(self, image_url, columns, rows, numFrames):
-        # image, center_source, width_height_source, center_dest, width_height_dest, rotation)
         self.image = simplegui.load_image(image_url)
         self.width = self.image.get_width()
         self.height = self.image.get_height()
@@ -220,7 +213,8 @@ class Explosion(Spritesheet):
         Game.ExplosionInstance = self
     
     def draw(self, canvas):
-        # debug mode
+        # debug purposes
+        # draw's actual collision circle
         # canvas.draw_circle(self.Position.get_p(), self.Radius, 1, "Orange", "Orange")
         
         canvas.draw_image(self.image,
@@ -260,18 +254,6 @@ class Explosion(Spritesheet):
             
                 if self.frameIndex[1] == self.rows:
                     self.kill()
-        
-        #if self.hit(PlayerCharacter):
-        #    Player.Lives -= 1
-        #    if self in Game.Entities:
-        #        Game.Entities.remove(self)
-        #    if Player.Lives <= 0:
-        #        Game.STAGE = -2
-        #        Game.isPlaying = False
-        #for enemy in Game.Enemies:
-        #    if self.hit(enemy):
-        #       Game.Enemies.remove(enemy)
-        #        Game.points += 100
         
     def kill(self):
         # kill both collision and sprite
@@ -461,7 +443,8 @@ class Worldspace:
         self.RenderNextMSG(canvas, len(killList) + 1)
         Player.Highest_Combo = max(Player.Highest_Combo, len(killList))
             
-        # debugging
+        # debug purposes
+        # draws the text below the score counter, use to see how the message would display when called
         #canvas.draw_text("300", (70, (Game.SCREEN_HEIGHT / 12) + (45 + 20*0)), 16, "White")
         #canvas.draw_text("300", (70, (Game.SCREEN_HEIGHT / 12) + (45 + 20*2)), 16, "White")
         
@@ -562,8 +545,6 @@ class Game:
         
         self.reset()
         
-        # Enemy init:
-        # def __init__(self, Position, Radius = 25, Velocity = Vector(), AI = False):
         self.Metatable = {
             1 : {
                 "PlayerSpawn" : Vector(self.SCREEN_WIDTH / 4,self.SCREEN_HEIGHT / 2),
@@ -627,7 +608,7 @@ class Game:
         self.forceKillObj(Bomb)
         self.forceKillObj(Explosion)
            
-        # very adhoc solution but Metatable always gets overridden for some reason?
+        # Adhoc solution until Metatable being overriden is fixed.
         if self.STAGE == 1:
             PlayerCharacter.Position = Vector(self.SCREEN_WIDTH / 4,self.SCREEN_HEIGHT / 2)
             self.Enemies = [Enemy(Vector(120,120))]
@@ -646,7 +627,6 @@ class Game:
         for objInstance in Game.Entities:
             if isinstance(objInstance, obj):
                 objInstance.kill()
-            
     
     def Transistion(self): # Whenever moving to new Level        
         PlayerCharacter.Position = self.Metatable[self.STAGE]["PlayerSpawn"]
