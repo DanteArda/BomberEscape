@@ -1,17 +1,8 @@
 import simplegui
-from user305_o32FtUyCKk_0 import Vector
+from user305_o32FtUyCKk_0 import Vector   
 
-# make sure n is within the range
-def clamp(n, min, max):
-    if n > max:
-        return max
-    
-    elif n < min:
-        return min
-    
-    return n
-    
-
+# Player Class #
+# =========================================== #
 class Player():
     def __init__(self):
         self.Position = None
@@ -42,7 +33,10 @@ class Player():
         self.Bombs_Dropped = 0
         self.Highest_Combo = 0
         
+# =========================================== #
 
+# Actor Class
+# =========================================== #
 class Actor:
     def __init__(self, position, radius, color):
         self.Position = position
@@ -144,7 +138,10 @@ class Enemy(Actor):
     def hit(self, actor) -> boolean:
         distance = actor.Position.copy().subtract(self.Position).length()
         return distance < (actor.Radius + self.Radius)
-        
+# =========================================== #
+
+# Spritesheet Class #
+# =========================================== #
 
 class Spritesheet():
     def __init__(self, image_url, columns, rows, numFrames):
@@ -161,6 +158,49 @@ class Spritesheet():
         self.frame_height = self.height / self.rows
         self.frame_centre_x = self.frame_width / 2
         self.frame_centre_y = self.frame_height / 2
+
+class Bomb(Spritesheet):
+    def __init__(self):
+        # bomb sprite from:
+        # https://opengameart.org/content/bomb-2     
+        super().__init__("https://opengameart.org/sites/default/files/bomb_9.png", 6, 1, 6)
+        
+        self.Position = PlayerCharacter.Position.copy()
+        self.Born = runtime
+        self.Counter = 0
+        
+        PlayerCharacter.canDropBomb = False
+        PlayerCharacter.timeSinceLastDroppedBomb = runtime
+        Player.Bombs_Dropped += 1
+        
+        Game.BombInstance = self
+ 
+       
+    def update(self):
+        self.Counter += 1
+        
+        if (self.Born + self.Counter) % 30 == 0:
+            self.frameIndex[0] = self.frameIndex[0] + 1
+            
+            if self.frameIndex[0] == 6:
+                self.explode()
+            
+    def explode(self):
+        Game.Entities.append(Explosion(self.Position))
+        self.kill()
+    
+    def kill(self):
+        Game.Entities.remove(self)
+        Game.BombInstance = None
+    
+    def draw(self, canvas): 
+        canvas.draw_image(self.image,
+                          (self.frame_width * self.frameIndex[0] + self.frame_centre_x,
+                           self.frame_height * self.frameIndex[1] + self.frame_centre_y),
+                          (self.frame_width, self.frame_height),
+                          (self.Position.x, self.Position.y),
+                          (PlayerCharacter.Radius+20, PlayerCharacter.Radius+25))
+        
         
 class Explosion(Spritesheet):
     def __init__(self, Position):
@@ -239,49 +279,10 @@ class Explosion(Spritesheet):
         Game.ExplosionInstance = None
         Game.Entities.remove(self)
 
-class Bomb(Spritesheet):
-    def __init__(self):
-        # bomb sprite from:
-        # https://opengameart.org/content/bomb-2     
-        super().__init__("https://opengameart.org/sites/default/files/bomb_9.png", 6, 1, 6)
-        
-        self.Position = PlayerCharacter.Position.copy()
-        self.Born = runtime
-        self.Counter = 0
-        
-        PlayerCharacter.canDropBomb = False
-        PlayerCharacter.timeSinceLastDroppedBomb = runtime
-        Player.Bombs_Dropped += 1
-        
-        Game.BombInstance = self
- 
-       
-    def update(self):
-        self.Counter += 1
-        
-        if (self.Born + self.Counter) % 30 == 0:
-            self.frameIndex[0] = self.frameIndex[0] + 1
-            
-            if self.frameIndex[0] == 6:
-                self.explode()
-            
-    def explode(self):
-        Game.Entities.append(Explosion(self.Position))
-        self.kill()
+# =========================================== #
     
-    def kill(self):
-        Game.Entities.remove(self)
-        Game.BombInstance = None
-    
-    def draw(self, canvas): 
-        canvas.draw_image(self.image,
-                          (self.frame_width * self.frameIndex[0] + self.frame_centre_x,
-                           self.frame_height * self.frameIndex[1] + self.frame_centre_y),
-                          (self.frame_width, self.frame_height),
-                          (self.Position.x, self.Position.y),
-                          (PlayerCharacter.Radius+20, PlayerCharacter.Radius+25))
-    
-# will definetly need to be revised if any walls are detached from the border
+# Physical Objects #
+# =========================================== #
 class Wall():
     def __init__(self, orientation, normal):
         # orientation: 'up', 'down', 'left', 'right'
@@ -303,7 +304,10 @@ class Wall():
         
         elif self.Orientation == 'right':
             canvas.draw_line((Game.SCREEN_WIDTH,Game.SCREEN_HEIGHT), (Game.SCREEN_HEIGHT, 0), self.Border, self.Color) 
-        
+# =========================================== #
+            
+# Interaction
+# =========================================== #
 class Keyboard:
     def __init__(self):
         self.RIGHT = False
@@ -419,8 +423,10 @@ class Interaction: # handles collision checking
     def update(self):
         self.keyboard_handler()
         self.collision()
-        
+# =========================================== #        
        
+# Worldspace #    
+# =========================================== #    
 class Worldspace:
     def __init__(self): # cache required objects
         self.NorthWall = Wall('up', Vector(0,-1))
@@ -545,7 +551,10 @@ class Worldspace:
             canvas.draw_text("Lives: " + str(Player.Lives), (20, Game.SCREEN_HEIGHT / 15), 20, "White")
             self.RenderScoreQueue(canvas)
             Game.isPlaying = True
+# =========================================== #
 
+# Game Class
+# =========================================== #
 class Game:
     def __init__(self):
         self.SCREEN_WIDTH = 512
@@ -653,6 +662,8 @@ class Game:
             return self.ExplosionInstance.allActorsHit
         return []
         
+    # Game Loop
+    # =========================================== #
     def Draw(self, canvas):
         global runtime
         runtime += 1
@@ -691,6 +702,7 @@ class Game:
             
             if runtime % 60 == 0 and self.STAGE != 0:
                 self.TIME_REMAINING -= 1
+# =========================================== #
            
     
 # init class
